@@ -1,5 +1,6 @@
 from math import *
 from matrix import matrix
+import matplotlib.pyplot as plt
 
 def kalman_estimate(x, P, measurement):
 
@@ -32,13 +33,16 @@ R=matrix([[0.01,0],[0,0.5]])                     #measurement error covariance
 I=matrix([[1,0,0],[0,1,0],[0,0,1]])
 
 measurements=[[0,1],[0.1,1],[0.2,0]]
+xcounter=[]
+vcounter=[]
+acounter=[]
 print 'Initial conditions : '
 print 'x ='
 x.show()
 print 'P ='
 P.show()
 print '------------------------------------------------------'
-for i in range(1,3) :
+for i in range(1,len(measurements)+1) :
     print 'Iteration %s :' % i
     print 'measurement : v={0}, a={1}'.format(measurements[i-1][0],measurements[i-1][1])
     (x,P)=kalman_estimate(x,P,measurements[i-1])
@@ -46,4 +50,16 @@ for i in range(1,3) :
     x.show()
     print 'P ='
     P.show()
+    xcounter.append((x.value)[0])
+    vcounter.append((x.value)[1])
+    acounter.append((x.value)[2])
     print '------------------------------------------------------'
+print xcounter
+print vcounter
+print acounter
+plt.plot(range(1,len(measurements)+1),xcounter)
+plt.show()
+plt.plot(range(1,len(measurements)+1),vcounter)
+plt.show()
+plt.plot(range(1,len(measurements)+1),acounter)
+plt.show()
