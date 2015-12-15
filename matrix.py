@@ -136,15 +136,17 @@ class matrix:
 
     def setvalue(self, indx, indy, new_value):
 
-        print indx
-        print indy
+        #print indx
+        #print indy
 
-        print self.value
-        print self.value[0]
+        #print self.value
+        #print self.value[0]
 
         self.value[indx-1][indy-1] = new_value
 
-        self.show()
+        #self.show()
 
+    def getvalue(self, indx, indy):
 
+        return self.value[indx-1][indy-1]
 ########################################

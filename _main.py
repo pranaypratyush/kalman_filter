@@ -10,15 +10,42 @@ from kraken_msgs.msg._absoluteRPY import absoluteRPY
 from kraken_msgs.msg._dvlData import dvlData
 from kraken_msgs.msg._positionData import positionData
 from kraken_msgs.msg._stateData import stateData
-from matrix import matrix
 
-#state = [[pos x,vel x],[pos y,vel y], [pos z,vel z]]
-state=[[0,0],[0,0],[0,0]] # initial state (location and velocity)
-measurements = [[[0,0,0]],[[0,0,0]]] 	#[[[vx,vy,vz]],[[ax,ay,az]]
-P_3dim = [[[1., 0.], [0., 1]],[[1., 0.], [0., 1]],[[1., 0.], [0., 1]]]# initial uncertainty
-#pos_history for x in all three dimensions
+#from kalman_estimator import *
+
+dt = 0.1
+NUM_VARIABLE_IN_STATE = 4
+INDEX_VEL_X = 0
+INDEX_VEL_Y = 1
+INDEX_VEL_Z = 2
+CONVERTED_TO_WORLD = False
+FIRST_ITERATION = True
+base_roll = 0
+base_pitch = 0
+base_yaw = 0
+
+# state = [position-x, velocity-x,],[position-y, velocity-y,],[position-z, velocity-z,]
+state = matrix([[0.0], [0.0]], [[0.0], [0.0]]) # initial state (location and velocity)
+statefilled = 2
+measurements = [[[0.0,0.0,0.0]],[[0.0,0.0,0.0]]] 	#[[[vx,vy,vz]],[[ax,ay,az]]
+P = matrix([[1., 0.], [0., 1]])# initial uncertainty
 pos_history=[[0],[0],[0]]
 
+oldtime = 0
+def dvlCallback2(dvl):
+	global oldtime
+	t = dvl.data
+
+	if oldtime == 0:
+
+		oldtime = time.time()
+		# print t[3], t[4]
+		return
+
+	if time.time() - oldtime >= 1:
+
+		oldtime = time.time()
+		# print t[3], t[4]
 
 def transformCallback(abrpy):
 	global statefilled
@@ -29,8 +56,8 @@ def transformCallback(abrpy):
 	global base_pitch
 	global base_yaw
 
-	vx = state[]
-	vy = state
+	vx = state.getvalue(INDEX_VEL_X, 1)
+	vy = state.getvalue(INDEX_VEL_Y, 1)
 
 	# yaw, pitch, roll
 
@@ -90,6 +117,13 @@ def transformCallback(abrpy):
 
 	bodytoworld = bodytoworld.transpose()
 
+	# print bodytoworld
+
+	# import numpy
+	# print numpy.linalg.det(bodytoworld.value)
+
+	# bodytoworld.show()
+
 	vel_wrt_body = matrix([[vx],[vy],[0.]])
 
 	vel_wrt_world = bodytoworld * vel_wrt_body
@@ -98,25 +132,39 @@ def transformCallback(abrpy):
 
 	CONVERTED_TO_WORLD = True
 
+	# print "Entered IMU callback!"
+
 def dvlCallback(dvl):
 	global state
 	global measurements
 	global statefilled
 
+	# print dvl.data
+
+	# print "Entered DVL callback!"
+
+	## Extract from the variable dvl
+
+	# vx = int(raw_input("Enter vx: "))
+	# vy = int(raw_input("Enter vy: "))
+
 	vx = dvl.data[3]
 	vy = -1 * dvl.data[4]
 	vz = dvl.data[5]
+	# print vx, vy
 
 	roll = dvl.data[0]
 	pitch = dvl.data[1]
 	yaw = dvl.data[2]
 
+	# print "DVL: ", roll, pitch, yaw
+	## End extract step
+
 	this_iteration_measurement = [vx, vy,vz]
 
-	state[0][1]=vx
-    state[1][1]=vy
-    state[2][1]=vz
-
+	state.setvalue(INDEX_VEL_X, 1, vx)
+	state.setvalue(INDEX_VEL_Y, 1, vy)
+	state.setvalue(INDEX_VEL_Z, 1, vz)
 	statefilled += 2
 	measurements[0]= measurements[0][-100:] + this_iteration_measurement
 
@@ -134,10 +182,10 @@ def publishStateAndPosition(state_matrix):
 	global position_publisher
 	global state_publisher
 
-    pos_x = state_matrix[0][0]
-    pos_y = state_matrix[1][0]
-    vx = state_matrix[0][1]
-    vy = state_matrix[1][1]
+	vx = state_matrix.getvalue(INDEX_VEL_X, 1)
+	vy = state_matrix.getvalue(INDEX_VEL_Y, 1)
+	pos_x = state_matrix.getvalue(INDEX_VEL_X, 0)
+	pos_y = state_matrix.getvalue(INDEX_VEL_Y, 0)
 
 	present_position = positionData()
 	present_state = stateData()
@@ -156,10 +204,21 @@ def publishStateAndPosition(state_matrix):
 
 	return
 
+# subscribe to IMU and DVL
+
+# extract pitch and yaw from IMU
+# extract vx and vy from DVL
+# take positions state and y from previous state. (Take (state, y) = (0, 0) initially.)
+
 absolute_rpy_topic_name = topicHeader.ABSOLUTE_RPY
 dvl_topic_name = topicHeader.SENSOR_DVL
 publish_state_topic_name = topicHeader.POSE_SERVER_STATE
 publish_position_topic_name = topicHeader.PRESENT_POSE
+
+# print absolute_rpy_topic_name
+# print dvl_topic_name
+# print publish_position_topic_name
+# print publish_state_topic_name
 
 rospy.init_node('pose_server_python_node', anonymous=True)
 
@@ -170,6 +229,8 @@ rospy.Subscriber(name=topicHeader.SENSOR_IMU, data_class=imuData, callback=imuCa
 position_publisher = rospy.Publisher(publish_position_topic_name, positionData, queue_size=10)
 state_publisher = rospy.Publisher(publish_state_topic_name, stateData, queue_size=10)
 
+# publishStateAndPosition(state_matrix)
+
 while(1):
 
 	# if all the data has been accumulated in the state variable
@@ -178,22 +239,24 @@ while(1):
 
 		#(new_state, new_P) = kalman_estimate(state, P, measurements[-1])
 		for i in range(0,2) :
-#			x=state[i]
-#            P=P_3dim[i]
-            va_measurements=[measurements[0][-1][i],measurements[1][-1][i]]
-            (state[i],P_3dim[i],pos_history[i])=kalman_estimate_1D(state[i],P_3dim[i],va_measurements,pos_history[i])
-#            state[i]=x
-#            P_3dim[i]=P
+			x=state
 
 
-#		state.setvalue(1, 1, new_state.getvalue(1, 1))
-#		state.setvalue(2, 1, new_state.getvalue(2, 1))
+
+
+		state.setvalue(1, 1, new_state.getvalue(1, 1))
+		state.setvalue(2, 1, new_state.getvalue(2, 1))
 
 		statefilled = 2
 		CONVERTED_TO_WORLD = False
 
 		publishStateAndPosition(state)
 
-		#P = matrix(new_P.value)
+		# print "new state: "
+		# new_state.show()
+		# print "new P matrix: "
+		# new_P.show()
+
+		P = matrix(new_P.value)
 
 rospy.spin()
