@@ -4,7 +4,7 @@ This respository is only meant for storing the files on the implementation of "k
 
 Taking measuremnts for only 'v' (from dvl) and 'a' (from imu) but tracking all three state variables.
 
-- The code now uses pykalman
+- The code now uses `pykalman`
 - Takes data from both imu and dvl
 - Uses a simple kalman for 2 variables
   and an unsecented kalman for 1 variable
