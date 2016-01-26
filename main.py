@@ -21,6 +21,7 @@ pos_history=[[0],[0],[0]]
 dvlfilled=False
 imufilled=False
 CONVERTED_TO_WORLD=False
+
 '''
 The "state" variable stores the current filtered position and velocity for all
 three dimensions.
@@ -29,14 +30,13 @@ although it's sliced after a certain number is reached to improve performance.
 "pos_history" stores the history of "filtered" positions for all 3 dimensions
 this too is sliced routinely to improve performance.
 '''
-def transformCallback(abrpy):
 
-	'''
+def transformCallback(abrpy):
+	"""
 	This funtion transforms the absolute roll,pitch,yaw for body to world.
 	At the end of processing, this function toggles the variable "CONVERTED_TO_WORLD".
 	This is used later to check if processing is done.
-	'''
-
+	"""
 	global state
 	global CONVERTED_TO_WORLD
 	global FIRST_ITERATION
@@ -115,12 +115,11 @@ def transformCallback(abrpy):
 	CONVERTED_TO_WORLD = True
 
 def dvlCallback(dvl):
-
-	'''
+	"""
 	This function receives data from dvl by subscribing to "topicHeader.SENSOR_DVL".
 	It appends velocity data to "measurements" and sets "dvlfilled" to True.
 	"dvlfilled" would be used later to check if data from dvl has been received.
-	'''
+	"""
 	global state
 	global measurements
 	global dvfilled
@@ -141,12 +140,11 @@ def dvlCallback(dvl):
 	return
 
 def imuCallback(imu):
-
-	'''
+	"""
 	This function receives data from imu by subscribing to "topicHeader.SENSOR_IMU".
 	It appends acceleration data to "measurements" and sets "imufilled" to True.
 	"imufilled" would later be used to check if data from dvl has been received.
-	'''
+	"""
 	global measurements
 	global imufilled
 	ax=imu.data[3]
@@ -160,11 +158,10 @@ def imuCallback(imu):
 	return
 
 def publishStateAndPosition(state_matrix):
-
-	'''
+	"""
 	This function is used to publish filtered data to appropriate topics.
 	It would be called from the infinite loop.
-	'''
+	"""
 	global position_publisher
 	global state_publisher
 
@@ -210,7 +207,7 @@ while(1):
 #	if(statefilled >= NUM_VARIABLE_IN_STATE and CONVERTED_TO_WORLD):
 	if dvlfilled and imufilled and CONVERTED_TO_WORLD :
 		#(new_state, new_P) = kalman_estimate(state, P, measurements[-1])
-		'''
+		"""
 		In this loop, on each iteration we first check whether the datas are
 		available or not. Then we process data for each of the dimensions
 		sequentially. The function "kalman_estimate_1D" takes velocity and
@@ -224,7 +221,7 @@ while(1):
 		Towards the end of the loop it sets the boolean values to false in order to
 		prepare for next iteration. It also publishes the data filtered in the
 		current iteration.
-		'''
+		"""
 
 		for i in range(0,2) :
 #			x=state[i]
