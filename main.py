@@ -111,6 +111,7 @@ def transformCallback(abrpy):
 	vel_wrt_world = bodytoworld * vel_wrt_body
 
 	vel_wrt_world.show()
+	updateAndPublish()
 
 	CONVERTED_TO_WORLD = True
 
@@ -137,6 +138,7 @@ def dvlCallback(dvl):
 	#statefilled += 2
 	measurements[0]= measurements[0][-100:] + this_iteration_measurement
 	dvfilled=True
+	updateAndPublish()
 	return
 
 def imuCallback(imu):
@@ -155,6 +157,7 @@ def imuCallback(imu):
 
 	measurements[1]= measurements[1][-100:] + this_iteration_measurement
 	imufilled=True
+	updateAndPublish()
 	return
 
 def publishStateAndPosition(state_matrix):
@@ -183,6 +186,7 @@ def publishStateAndPosition(state_matrix):
 	position_publisher.publish(present_position)
 	state_publisher.publish(present_state)
 
+
 	return
 
 absolute_rpy_topic_name = topicHeader.ABSOLUTE_RPY
@@ -199,12 +203,14 @@ rospy.Subscriber(name=topicHeader.SENSOR_IMU, data_class=imuData, callback=imuCa
 position_publisher = rospy.Publisher(publish_position_topic_name, positionData, queue_size=10)
 state_publisher = rospy.Publisher(publish_state_topic_name, stateData, queue_size=10)
 
-r=rospy.Rate(10)
-while(1):
+rospy.spin()
+# r=rospy.Rate(10)
+# while(1):
 
 	# if all the data has been accumulated in the state variable
 
 #	if(statefilled >= NUM_VARIABLE_IN_STATE and CONVERTED_TO_WORLD):
+def updateAndPublish() :
 	if dvlfilled and imufilled and CONVERTED_TO_WORLD :
 		#(new_state, new_P) = kalman_estimate(state, P, measurements[-1])
 		"""
@@ -237,7 +243,4 @@ while(1):
 		CONVERTED_TO_WORLD = False
 
 		publishStateAndPosition(state)
-		r.sleep()
-
-
-rospy.spin()
+		# r.sleep()
