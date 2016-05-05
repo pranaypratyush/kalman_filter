@@ -12,37 +12,118 @@ from kraken_msgs.msg._positionData import positionData
 from kraken_msgs.msg._stateData import stateData
 from matrix import matrix
 
-#state = [[pos x,vel x],[pos y,vel y], [pos z,vel z]]
+import math
+
 state=[[0,0],[0,0],[0,0]] # initial state (location and velocity)
 measurements = [[[0,0,0]],[[0,0,0]]] 	#[[[vx,vy,vz]],[[ax,ay,az]]
 P_3dim = [[[1., 0.], [0., 1]],[[1., 0.], [0., 1]],[[1., 0.], [0., 1]]]# initial uncertainty
 #pos_history for x in all three dimensions
 pos_history=[[0],[0],[0]]
+
 dvlfilled=False
 imufilled=False
 CONVERTED_TO_WORLD=False
+FIRST_ITERATION=True
 
-'''
-The "state" variable stores the current filtered position and velocity for all
-three dimensions.
-The "measurements" variable stores a history of all measurements made
-although it's sliced after a certain number is reached to improve performance.
-"pos_history" stores the history of "filtered" positions for all 3 dimensions
-this too is sliced routinely to improve performance.
-'''
+
+def main() :
+
+	'''
+	The "state" variable stores the current filtered position and velocity for all
+	three dimensions.
+	The "measurements" variable stores a history of all measurements made
+	although it's sliced after a certain number is reached to improve performance.
+	"pos_history" stores the history of "filtered" positions for all 3 dimensions
+	this too is sliced routinely to improve performance.
+	'''
+	absolute_rpy_topic_name = topicHeader.ABSOLUTE_RPY
+	dvl_topic_name = topicHeader.SENSOR_DVL
+	publish_state_topic_name = topicHeader.POSE_SERVER_STATE
+	publish_position_topic_name = topicHeader.PRESENT_POSE
+
+
+	rospy.init_node('pose_server_python_node', anonymous=True)
+
+	rospy.Subscriber(name=absolute_rpy_topic_name, data_class=absoluteRPY, callback=transformCallback)
+	rospy.Subscriber(name=dvl_topic_name, data_class=dvlData, callback=dvlCallback)
+	rospy.Subscriber(name=topicHeader.SENSOR_IMU, data_class=imuData, callback=imuCallback)
+
+	position_publisher = rospy.Publisher(publish_position_topic_name, positionData, queue_size=10)
+	state_publisher = rospy.Publisher(publish_state_topic_name, stateData, queue_size=10)
+
+	rospy.spin()
+	# r=rospy.Rate(10)
+	# while(1):
+
+		# if all the data has been accumulated in the state variable
+
+	#	if(statefilled >= NUM_VARIABLE_IN_STATE and CONVERTED_TO_WORLD):
+
+
+def updateAndPublish() :
+	global state
+	global measurements
+	global P_3dim
+	global pos_history
+	global dvlfilled
+	global imufilled
+	global CONVERTED_TO_WORLD
+	global FIRST_ITERATION
+
+	if dvlfilled and imufilled and CONVERTED_TO_WORLD :
+		#(new_state, new_P) = kalman_estimate(state, P, measurements[-1])
+		"""
+		In this loop, on each iteration we first check whether the datas are
+		available or not. Then we process data for each of the dimensions
+		sequentially. The function "kalman_estimate_1D" takes velocity and
+		acceleration from previous filter updates in the first argument.
+		So state[i] is supplied as this allows us to keep track of all three
+		dimensions simulaneously.The second argument is covariance matrix from
+		previous filtration. The third argument is the new velocity and accelration
+		measurement passed in [vel,acc] form. The fourth argument is position
+		history. A filtered history is kept (instead of the current state) for the
+		current postion math.since this would be required in the Unscented Kalman Filter.
+		Towards the end of the loop it sets the boolean values to false in order to
+		prepare for next iteration. It also publishes the data filtered in the
+		current iteration.
+		"""
+
+		for i in range(0,2) :
+#			x=state[i]
+#            P=P_3dim[i]
+			va_measurements=[measurements[0][-1][i],measurements[1][-1][i]]
+			(state[i],P_3dim[i],pos_history[i]) = kalman_estimate_1D (state[i],P_3dim[i],va_measurements,pos_history[i])
+
+#            state[i]=x
+#            P_3dim[i]=P
+
+		#statefilled = 2
+		dvlfilled=False
+		imufilled=False
+		CONVERTED_TO_WORLD = False
+
+		publishStateAndPosition(state)
+		# r.sleep()
+		print "state = " + state
+
 
 def transformCallback(abrpy):
 	"""
 	This funtion transforms the absolute roll,pitch,yaw for body to world.
-	At the end of processing, this function toggles the variable "CONVERTED_TO_WORLD".
-	This is used later to check if processing is done.
+	At the end of procesmath.sing, this function toggles the variable "CONVERTED_TO_WORLD".
+	This is used later to check if procesmath.sing is done.
 	"""
-	global state
-	global CONVERTED_TO_WORLD
-	global FIRST_ITERATION
 	global base_roll
 	global base_pitch
 	global base_yaw
+	global state
+	global measurements
+	global P_3dim
+	global pos_history
+	global dvlfilled
+	global imufilled
+	global CONVERTED_TO_WORLD
+	global FIRST_ITERATION
 
 	vx = state[0][1]
 	vy = state[1][1]
@@ -62,18 +143,18 @@ def transformCallback(abrpy):
 		FIRST_ITERATION = False
 
 	print "IMU (Un-Corrected): ",
-	print round(roll, 2),
-	print round(pitch, 2),
-	print round(yaw, 2)
+	print round(roll, 3),
+	print round(pitch, 3),
+	print round(yaw, 3)
 
 	roll = roll - base_roll
 	pitch = pitch - base_pitch
 	yaw = yaw - base_yaw
 
 	print "IMU (Corrected): ",
-	print round(roll, 2),
-	print round(pitch, 2),
-	print round(yaw, 2)
+	print round(roll, 3),
+	print round(pitch, 3),
+	print round(yaw, 3)
 
 	## Convert the roll, pitch and yaw to radians.
 
@@ -86,20 +167,20 @@ def transformCallback(abrpy):
 	bodytoworld = matrix(
 		[
 		[ # row 1
-			cos(yaw) * cos(pitch),
-		  sin(yaw) * cos(pitch),
-		 	-1 * sin(pitch)
+			math.cos(yaw) * math.cos(pitch),
+		  math.sin(yaw) * math.cos(pitch),
+		 	-1 * math.sin(pitch)
 		],
 
 		[ # row 2
-			cos(yaw) * sin(pitch) * sin(roll) - sin(yaw) * cos(roll),
-		 	sin(yaw) * sin(pitch) * sin(roll) + cos(yaw) * cos(roll),
-		 	cos(pitch) * sin(roll)
+			math.cos(yaw) * math.sin(pitch) * math.sin(roll) - math.sin(yaw) * math.cos(roll),
+		 	math.sin(yaw) * math.sin(pitch) * math.sin(roll) + math.cos(yaw) * math.cos(roll),
+		 	math.cos(pitch) * math.sin(roll)
 		],
 		[ # row 3
-			cos(yaw) * sin(pitch) * cos(roll) + sin(yaw) * sin(roll),
-		 	sin(yaw) * sin(pitch) * cos(roll) - cos(yaw) * sin(roll),
-		 	cos(pitch) * cos(roll)
+			math.cos(yaw) * math.sin(pitch) * math.cos(roll) + math.sin(yaw) * math.sin(roll),
+		 	math.sin(yaw) * math.sin(pitch) * math.cos(roll) - math.cos(yaw) * math.sin(roll),
+		 	math.cos(pitch) * math.cos(roll)
 		]
 	  ]
 	)
@@ -123,7 +204,12 @@ def dvlCallback(dvl):
 	"""
 	global state
 	global measurements
-	global dvfilled
+	global P_3dim
+	global pos_history
+	global dvlfilled
+	global imufilled
+	global CONVERTED_TO_WORLD
+	global FIRST_ITERATION
 
 	vx = dvl.data[3]
 	vy = -1 * dvl.data[4]
@@ -147,8 +233,14 @@ def imuCallback(imu):
 	It appends acceleration data to "measurements" and sets "imufilled" to True.
 	"imufilled" would later be used to check if data from dvl has been received.
 	"""
+	global state
 	global measurements
+	global P_3dim
+	global pos_history
+	global dvlfilled
 	global imufilled
+	global CONVERTED_TO_WORLD
+	global FIRST_ITERATION
 	ax=imu.data[3]
 	ay=imu.data[4]
 	az=imu.data[5]
@@ -167,6 +259,14 @@ def publishStateAndPosition(state_matrix):
 	"""
 	global position_publisher
 	global state_publisher
+	global state
+	global measurements
+	global P_3dim
+	global pos_history
+	global dvlfilled
+	global imufilled
+	global CONVERTED_TO_WORLD
+	global FIRST_ITERATION
 
 	pos_x = state_matrix[0][0]
 	pos_y = state_matrix[1][0]
@@ -189,58 +289,5 @@ def publishStateAndPosition(state_matrix):
 
 	return
 
-absolute_rpy_topic_name = topicHeader.ABSOLUTE_RPY
-dvl_topic_name = topicHeader.SENSOR_DVL
-publish_state_topic_name = topicHeader.POSE_SERVER_STATE
-publish_position_topic_name = topicHeader.PRESENT_POSE
 
-rospy.init_node('pose_server_python_node', anonymous=True)
-
-rospy.Subscriber(name=absolute_rpy_topic_name, data_class=absoluteRPY, callback=transformCallback)
-rospy.Subscriber(name=dvl_topic_name, data_class=dvlData, callback=dvlCallback)
-rospy.Subscriber(name=topicHeader.SENSOR_IMU, data_class=imuData, callback=imuCallback)
-
-position_publisher = rospy.Publisher(publish_position_topic_name, positionData, queue_size=10)
-state_publisher = rospy.Publisher(publish_state_topic_name, stateData, queue_size=10)
-
-rospy.spin()
-# r=rospy.Rate(10)
-# while(1):
-
-	# if all the data has been accumulated in the state variable
-
-#	if(statefilled >= NUM_VARIABLE_IN_STATE and CONVERTED_TO_WORLD):
-def updateAndPublish() :
-	if dvlfilled and imufilled and CONVERTED_TO_WORLD :
-		#(new_state, new_P) = kalman_estimate(state, P, measurements[-1])
-		"""
-		In this loop, on each iteration we first check whether the datas are
-		available or not. Then we process data for each of the dimensions
-		sequentially. The function "kalman_estimate_1D" takes velocity and
-		acceleration from previous filter updates in the first argument.
-		So state[i] is supplied as this allows us to keep track of all three
-		dimensions simulaneously.The second argument is covariance matrix from
-		previous filtration. The third argument is the new velocity and accelration
-		measurement passed in [vel,acc] form. The fourth argument is position
-		history. A filtered history is kept (instead of the current state) for the
-		current postion since this would be required in the Unscented Kalman Filter.
-		Towards the end of the loop it sets the boolean values to false in order to
-		prepare for next iteration. It also publishes the data filtered in the
-		current iteration.
-		"""
-
-		for i in range(0,2) :
-#			x=state[i]
-#            P=P_3dim[i]
-			va_measurements=[measurements[0][-1][i],measurements[1][-1][i]]
-			(state[i],P_3dim[i],pos_history[i]) = kalman_estimate_1D (state[i],P_3dim[i],va_measurements,pos_history[i])
-#            state[i]=x
-#            P_3dim[i]=P
-
-		#statefilled = 2
-		dvlfilled=False
-		imufilled=False
-		CONVERTED_TO_WORLD = False
-
-		publishStateAndPosition(state)
-		# r.sleep()
+if __name__ == "__main__": main()
